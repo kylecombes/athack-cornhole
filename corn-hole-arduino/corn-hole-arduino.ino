@@ -34,7 +34,8 @@ short buttonStates[NUM_BUTTONS];
 Adafruit_MotorShield AFMS = Adafruit_MotorShield();
 
 Adafruit_DCMotor *panMotor = AFMS.getMotor(PAN_MOTOR);
-Adafruit_DCMotor *tiltMotor = AFMS.getMotor(TILT_MOTOR);
+Adafruit_StepperMotor *tiltMotor = AFMS.getStepper(200, 2);
+Adafruit_DCMotor *springMotor = AFMS.getMotor(TILT_MOTOR);
 
 void setup() {
   // Initialize serial for computer debugging
@@ -73,21 +74,31 @@ void loop() {
   for (short i = 0; i < NUM_BUTTONS; ++i) {
     Adafruit_DCMotor *motor;
     short direction;
+    bool usingDCMotor = true;
+    
     if (buttons[i] == PAN_LEFT_BUTTON_PIN) {
       motor = panMotor;
       direction = FORWARD;
+      
     } else if (buttons[i] == PAN_RIGHT_BUTTON_PIN) {
       motor = panMotor;
       direction = BACKWARD;
+      
     } else if (buttons[i] == TILT_UP_BUTTON_PIN) {
-      motor = tiltMotor;
       direction = FORWARD;
+      usingDCMotor = false;
+      
     } else if (buttons[i] == TILT_DOWN_BUTTON_PIN) {
-      motor = tiltMotor;
       direction = BACKWARD;
+      usingDCMotor = false;  
     }
-    motor->setSpeed(PAN_PWM);
-    motor->run(buttonStates[i] == HIGH ? direction : RELEASE);
+    
+    if (usingDCMotor) {
+      motor->setSpeed(PAN_PWM);
+      motor->run(buttonStates[i] == HIGH ? direction : RELEASE);
+    } else if (buttonStates[i] == HIGH) {
+      tiltMotor->step(20, direction, SINGLE);
+    }
   }
 
 }
@@ -114,12 +125,12 @@ void pan(int ms, short direction) {
  */
 void tilt(int ms, short direction) {
   // Move the motor
-  tiltMotor->setSpeed(TILT_PWM);
-  tiltMotor->run(direction);
+//  tiltMotor->setSpeed(TILT_PWM);
+//  tiltMotor->run(direction);
   // Wait for ms
   delay(ms);
   // Stop the motor
-  tiltMotor->run(RELEASE);
+//  tiltMotor->run(RELEASE);
 }
 
 /**
