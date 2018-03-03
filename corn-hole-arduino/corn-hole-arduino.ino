@@ -1,19 +1,34 @@
 // Setting up motors and motor shield
+#include <Wire.h>
 #include <Adafruit_MotorShield.h>
+#include "utility/Adafruit_MS_PWMServoDriver.h"
 
 // TODO Configure these pins
-#define PAN_MOTOR (4)           // this is the M1 pin on motor shield
-#define TILT_MOTOR (3)          // this is the M2 on motor shield
+#define PAN_MOTOR (1)           // this is the M1 pin on motor shield
+#define TILT_MOTOR (2)          // this is the M2 on motor shield
 #define TOSS_BUTTON_PIN 5       // spring release button
-#define PAN_LEFT_BUTTON_PIN 5   // pan left button
-#define PAN_RIGHT_BUTTON_PIN 5  // pan right button
+#define PAN_LEFT_BUTTON_PIN 7   // pan left button
+#define PAN_RIGHT_BUTTON_PIN 6  // pan right button
 #define TILT_UP_BUTTON_PIN 5    // tilt up button
-#define TILT_DOWN_BUTTON_PIN 5  // tilt down button
+#define TILT_DOWN_BUTTON_PIN 4  // tilt down button
 
-#define PAN_PWM 100         // the PWM speed at which to pan
-#define TILT_PWM 100        // the PWM speed at which to tilt
-#define MIN_RANDOMIZE_TIME  // the minimum time to move a servo during randomization
-#define MAX_RANDOMIZE_TIME  // the maximum time to move a servo during randomization
+#define PAN_PWM 255             // the PWM speed at which to pan
+#define TILT_PWM 255            // the PWM speed at which to tilt
+#define MIN_RANDOMIZE_TIME 150  // the minimum time to move a servo during randomization
+#define MAX_RANDOMIZE_TIME 500  // the maximum time to move a servo during randomization
+
+#define DEBOUNCE_DELAY 50       // the time between button reads
+
+#define NUM_BUTTONS 4
+short buttons[] = {
+  PAN_LEFT_BUTTON_PIN,
+  PAN_RIGHT_BUTTON_PIN,
+  TILT_UP_BUTTON_PIN,
+  TILT_DOWN_BUTTON_PIN
+};
+unsigned long lastDebounceTimes[NUM_BUTTONS];  // the last time the output pins were toggled
+short lastButtonStates[NUM_BUTTONS];
+short buttonStates[NUM_BUTTONS];
 
 // Create the motor shield object with the default I2C address
 Adafruit_MotorShield AFMS = Adafruit_MotorShield();
@@ -25,21 +40,62 @@ void setup() {
   // Initialize serial for computer debugging
   Serial.begin(9600);
   
+  // Configure button pins as inputs
+  for (short i = 0; i < NUM_BUTTONS; ++i) {
+    pinMode(buttons[i], INPUT);
+    lastButtonStates[i] = LOW;
+    buttonStates[i] = LOW;
+    lastDebounceTimes[i] = 0;
+  }
+  
   // Initialize the motors
   AFMS.begin();  // create with the default frequency 1.6KHz
-  
-  // TODO Init buttons
   
 }
 
 void loop() {
-  // TODO Check for button presses
+
+  // Check the states of all the buttons
+  for (short i = 0; i < NUM_BUTTONS; ++i) {
+    int reading = digitalRead(buttons[i]);
+
+    if (reading != lastButtonStates[i]) {
+      // Button has changed state, so reset the debouncing timer for that button
+      lastDebounceTimes[i] = millis();
+    } else if ((millis() - lastDebounceTimes[i]) > DEBOUNCE_DELAY) {
+      buttonStates[i] = reading;
+    }
+    // save the reading. Next time through the loop, it'll be the lastButtonState:
+    lastButtonStates[i] = reading;
+  }
+
+  // Check if 
+  for (short i = 0; i < NUM_BUTTONS; ++i) {
+    Adafruit_DCMotor *motor;
+    short direction;
+    if (buttons[i] == PAN_LEFT_BUTTON_PIN) {
+      motor = panMotor;
+      direction = FORWARD;
+    } else if (buttons[i] == PAN_RIGHT_BUTTON_PIN) {
+      motor = panMotor;
+      direction = BACKWARD;
+    } else if (buttons[i] == TILT_UP_BUTTON_PIN) {
+      motor = tiltMotor;
+      direction = FORWARD;
+    } else if (buttons[i] == TILT_DOWN_BUTTON_PIN) {
+      motor = tiltMotor;
+      direction = BACKWARD;
+    }
+    motor->setSpeed(PAN_PWM);
+    motor->run(buttonStates[i] == HIGH ? direction : RELEASE);
+  }
+
 }
 
 /**
  * Pans the launcher left and right.
  * ms: the number of milliseconds to move for
- * direction: the direction to move in (1 for left/counter-clockwise, -1 for right/clockwise)
+ * direction: the direction to move in
  */
 void pan(int ms, short direction) {
   // Move the motor
@@ -54,7 +110,7 @@ void pan(int ms, short direction) {
 /**
  * Pans the cannon left and right.
  * ms: the number of milliseconds to move for
- * direction: the direction to move in (1 for up, -1 for down)
+ * direction: the direction to move in
  */
 void tilt(int ms, short direction) {
   // Move the motor
